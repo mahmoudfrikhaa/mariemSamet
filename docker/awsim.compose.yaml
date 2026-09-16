@@ -1,0 +1,105 @@
+# ---------------------------------------------------------------------------
+# Autoware (cote ROS 2) pour la demo AWSIM, adapte a WSL2.
+# Base sur docker/examples/demos/awsim/docker-compose.yaml du depot
+# autowarefoundation/autoware, avec les ajouts specifiques WSL :
+#   - socket WSLg (/mnt/wslg) pour l'affichage de RViz
+#   - /usr/lib/wsl monte en lecture seule + LD_LIBRARY_PATH (pilote GPU WSL)
+#   - configuration CycloneDDS du projet
+#
+# Services :
+#   autoware   -> simulation complete avec AWSIM (e2e_simulator)
+#   psim       -> plan B sans AWSIM (planning_simulator, RViz seul)
+#   shell      -> shell ROS 2 pour inspecter les topics
+# ---------------------------------------------------------------------------
+
+x-common: &common
+  image: ${AUTOWARE_IMAGE:-ghcr.io/autowarefoundation/autoware:universe-cuda-humble}
+  privileged: true
+  runtime: nvidia
+  # Indispensable : AWSIM tourne sur l'hote WSL, le DDS doit traverser sans NAT.
+  network_mode: host
+  stdin_open: true
+  tty: true
+  environment:
+    - DISPLAY=${DISPLAY:-:0}
+    - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
+    - XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
+    - PULSE_SERVER=/mnt/wslg/PulseServer
+    - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+    # OpenGL materiel pour RViz : sous WSL, Mesa ne choisit le pilote D3D12
+    # (et donc le GPU) que si on le lui demande explicitement, sinon il
+    # retombe sur llvmpipe, en rendu logiciel.
+    - GALLIUM_DRIVER=d3d12
+    - MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA
+    - LIBGL_ALWAYS_SOFTWARE=0
+    - LIBGL_ALWAYS_INDIRECT=0
+    - QT_X11_NO_MITSHM=1
+    - NVIDIA_DRIVER_CAPABILITIES=all
+    - NVIDIA_VISIBLE_DEVICES=all
+    # AWSIM v2 parle FastDDS : Autoware doit faire pareil (l'image est
+    # configuree en CycloneDDS par defaut, on surcharge donc ici).
+    - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+    - FASTRTPS_DEFAULT_PROFILES_FILE=/opt/project/config/fastdds.xml
+    - FASTDDS_DEFAULT_PROFILES_FILE=/opt/project/config/fastdds.xml
+    - HOST_UID=${HOST_UID:-1000}
+    - HOST_GID=${HOST_GID:-1000}
+  devices:
+    - /dev/dxg:/dev/dxg
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    - /mnt/wslg:/mnt/wslg:rw
+    - /usr/lib/wsl:/usr/lib/wsl:ro
+    - ../config:/opt/project/config:ro
+    # create_host_path desactive : Compose creerait les dossiers en root et
+    # l'utilisateur 'aw' du conteneur ne pourrait pas y ecrire.
+    - type: bind
+      source: ${HOME}/autoware_data/maps
+      target: /home/aw/autoware_data/maps
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${HOME}/autoware_data/ml_models
+      target: /home/aw/autoware_data/ml_models
+      bind:
+        create_host_path: false
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  # Simulation complete : Autoware pilote le vehicule d'AWSIM.
+  autoware:
+    <<: *common
+    command:
+      - bash
+      - -c
+      - |
+        ros2 launch autoware_launch e2e_simulator.launch.xml \
+          vehicle_model:=sample_vehicle \
+          sensor_model:=awsim_sensor_kit \
+          map_path:=/home/aw/autoware_data/maps/Shinjuku-Map/map \
+          ${AW_LAUNCH_ARGS:-}
+        exec bash
+
+  # Plan B : conduite autonome sans Unity, entierement dans RViz.
+  psim:
+    <<: *common
+    command:
+      - bash
+      - -c
+      - |
+        ros2 launch autoware_launch planning_simulator.launch.xml \
+          vehicle_model:=sample_vehicle \
+          sensor_model:=sample_sensor_kit \
+          map_path:=/home/aw/autoware_data/maps/Shinjuku-Map/map \
+          ${AW_LAUNCH_ARGS:-}
+        exec bash
+
+  # Shell ROS 2 : ros2 topic list / hz / echo, rviz2, diagnostics...
+  shell:
+    <<: *common
+    command: ["bash"]

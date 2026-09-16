@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Profil FastDDS partage par AWSIM et Autoware.
+
+  AWSIM v2.0.1 embarque ros2-for-unity compile avec rmw_fastrtps_cpp : c'est
+  donc FastDDS, et non CycloneDDS, qui transporte les topics. Les deux cotes
+  doivent utiliser la meme implementation.
+
+  Ce profil force un transport UDPv4 unique avec de gros tampons :
+  - la memoire partagee est desactivee (elle ne traverse pas proprement la
+    frontiere hote / conteneur) ;
+  - les tampons de 16 Mio et la fragmentation a 65000 octets evitent la perte
+    des nuages de points LiDAR, qui depassent largement un datagramme.
+-->
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <profiles>
+        <transport_descriptors>
+            <transport_descriptor>
+                <transport_id>udp_large_buffers</transport_id>
+                <type>UDPv4</type>
+                <sendBufferSize>16777216</sendBufferSize>
+                <receiveBufferSize>16777216</receiveBufferSize>
+                <maxMessageSize>65000</maxMessageSize>
+                <maxInitialPeersRange>10</maxInitialPeersRange>
+            </transport_descriptor>
+        </transport_descriptors>
+
+        <participant profile_name="awsim_autoware" is_default_profile="true">
+            <rtps>
+                <userTransports>
+                    <transport_id>udp_large_buffers</transport_id>
+                </userTransports>
+                <useBuiltinTransports>false</useBuiltinTransports>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>

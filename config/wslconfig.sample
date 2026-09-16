@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# A copier vers  C:\Users\mahmo\.wslconfig  (cote Windows), puis dans PowerShell :
+#     wsl --shutdown
+# et rouvrir le terminal Ubuntu.
+#
+# Objectif : donner plus de RAM a WSL (hote = 32 Go, WSL n'en recoit que 15 par
+# defaut) car Autoware + AWSIM sont gourmands.
+# ---------------------------------------------------------------------------
+[wsl2]
+memory=24GB
+processors=10
+swap=8GB
+
+# GPU / OpenGL : indispensable pour qu'AWSIM (Unity) ait un rendu materiel.
+gpuSupport=true
+
+# Optionnel : mode reseau "miroir" (Windows 11 22H2+). A n'activer que si le
+# diagnostic 00_check_env.sh signale un probleme de reseau entre le conteneur
+# Autoware et AWSIM. Peut casser d'autres outils reseau : a tester.
+# networkingMode=mirrored
+# dnsTunneling=true
+# firewall=true
