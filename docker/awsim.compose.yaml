@@ -1,10 +1,11 @@
 # ---------------------------------------------------------------------------
-# Autoware (cote ROS 2) pour la demo AWSIM, adapte a WSL2.
+# Autoware (cote ROS 2) pour la demo AWSIM.
 # Base sur docker/examples/demos/awsim/docker-compose.yaml du depot
-# autowarefoundation/autoware, avec les ajouts specifiques WSL :
-#   - socket WSLg (/mnt/wslg) pour l'affichage de RViz
-#   - /usr/lib/wsl monte en lecture seule + LD_LIBRARY_PATH (pilote GPU WSL)
-#   - configuration CycloneDDS du projet
+# autowarefoundation/autoware.
+#
+# Ce fichier vise un Ubuntu natif (affichage X11, GPU NVIDIA via le runtime
+# nvidia). Sous WSL2, scripts/_common.sh ajoute automatiquement
+# awsim.wsl.yaml (WSLg, /dev/dxg, pilote D3D12) via COMPOSE_FILE.
 #
 # Services :
 #   autoware   -> simulation complete avec AWSIM (e2e_simulator)
@@ -16,39 +17,31 @@ x-common: &common
   image: ${AUTOWARE_IMAGE:-ghcr.io/autowarefoundation/autoware:universe-cuda-humble}
   privileged: true
   runtime: nvidia
-  # Indispensable : AWSIM tourne sur l'hote WSL, le DDS doit traverser sans NAT.
+  # Indispensable : AWSIM tourne sur l'hote, le DDS doit traverser sans NAT.
   network_mode: host
+  # /dev/shm partage avec l'hote : transport FastDDS par memoire partagee
+  # entre AWSIM et Autoware (config/fastdds-native.xml).
+  ipc: host
   stdin_open: true
   tty: true
   environment:
     - DISPLAY=${DISPLAY:-:0}
-    - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
-    - XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
-    - PULSE_SERVER=/mnt/wslg/PulseServer
-    - LD_LIBRARY_PATH=/usr/lib/wsl/lib
-    # OpenGL materiel pour RViz : sous WSL, Mesa ne choisit le pilote D3D12
-    # (et donc le GPU) que si on le lui demande explicitement, sinon il
-    # retombe sur llvmpipe, en rendu logiciel.
-    - GALLIUM_DRIVER=d3d12
-    - MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA
-    - LIBGL_ALWAYS_SOFTWARE=0
-    - LIBGL_ALWAYS_INDIRECT=0
+    # PC portable hybride (Intel + NVIDIA en mode on-demand) : sans ces deux
+    # variables, RViz serait rendu par le GPU Intel, voire en logiciel.
+    - __NV_PRIME_RENDER_OFFLOAD=1
+    - __GLX_VENDOR_LIBRARY_NAME=nvidia
     - QT_X11_NO_MITSHM=1
     - NVIDIA_DRIVER_CAPABILITIES=all
     - NVIDIA_VISIBLE_DEVICES=all
     # AWSIM v2 parle FastDDS : Autoware doit faire pareil (l'image est
     # configuree en CycloneDDS par defaut, on surcharge donc ici).
     - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-    - FASTRTPS_DEFAULT_PROFILES_FILE=/opt/project/config/fastdds.xml
-    - FASTDDS_DEFAULT_PROFILES_FILE=/opt/project/config/fastdds.xml
+    - FASTRTPS_DEFAULT_PROFILES_FILE=/opt/project/config/${FASTDDS_PROFILE:-fastdds.xml}
+    - FASTDDS_DEFAULT_PROFILES_FILE=/opt/project/config/${FASTDDS_PROFILE:-fastdds.xml}
     - HOST_UID=${HOST_UID:-1000}
     - HOST_GID=${HOST_GID:-1000}
-  devices:
-    - /dev/dxg:/dev/dxg
   volumes:
     - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    - /mnt/wslg:/mnt/wslg:rw
-    - /usr/lib/wsl:/usr/lib/wsl:ro
     - ../config:/opt/project/config:ro
     # create_host_path desactive : Compose creerait les dossiers en root et
     # l'utilisateur 'aw' du conteneur ne pourrait pas y ecrire.

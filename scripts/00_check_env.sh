@@ -13,9 +13,10 @@ if uname -r | grep -qi microsoft; then
   SOFT=$((SOFT+1))
 fi
 MEM_GB=$(awk '/MemTotal/ {printf "%.0f", $2/1024/1024}' /proc/meminfo)
-info "RAM allouee a WSL : ${MEM_GB} Go"
+info "RAM : ${MEM_GB} Go"
 if [ "$MEM_GB" -lt 20 ]; then
-  warn "Moins de 20 Go : copiez config/wslconfig.sample vers C:\\Users\\<vous>\\.wslconfig puis 'wsl --shutdown'."
+  warn "Moins de 20 Go de RAM."
+  [ "$IS_WSL" = 1 ] && info "Copiez config/wslconfig.sample vers C:\\Users\\<vous>\\.wslconfig puis 'wsl --shutdown'."
   SOFT=$((SOFT+1))
 else
   ok "RAM suffisante"
@@ -59,9 +60,14 @@ fi
 if need_cmd glxinfo; then
   # Sous WSL, Mesa n'utilise le GPU que si on lui impose le pilote D3D12 et
   # l'adaptateur NVIDIA ; sans cela il retombe silencieusement sur llvmpipe.
-  GLREN=$(GALLIUM_DRIVER=d3d12 MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA \
-          glxinfo -B 2>/dev/null | grep -i "OpenGL renderer" | cut -d: -f2- | xargs || true)
-  if echo "$GLREN" | grep -qi "d3d12.*nvidia"; then
+  if [ "$IS_WSL" = 1 ]; then
+    GLREN=$(GALLIUM_DRIVER=d3d12 MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA \
+            glxinfo -B 2>/dev/null | grep -i "OpenGL renderer" | cut -d: -f2- | xargs || true)
+  else
+    GLREN=$(__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia \
+            glxinfo -B 2>/dev/null | grep -i "OpenGL renderer" | cut -d: -f2- | xargs || true)
+  fi
+  if echo "$GLREN" | grep -qiE "d3d12.*nvidia|nvidia|geforce"; then
     ok "OpenGL materiel pour RViz : $GLREN"
   else
     warn "OpenGL sans acceleration ($GLREN) : RViz sera lent."
@@ -69,7 +75,7 @@ if need_cmd glxinfo; then
   fi
 fi
 
-title "4. Affichage WSLg / X11"
+title "4. Affichage X11"
 info "DISPLAY=${DISPLAY:-<vide>}  WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-<vide>}"
 [ -n "${DISPLAY:-}" ] && ok "DISPLAY defini" || { err "DISPLAY vide : aucune fenetre ne pourra s'ouvrir"; FAIL=$((FAIL+1)); }
 [ -S /tmp/.X11-unix/X0 ] && ok "Socket X11 present (/tmp/.X11-unix/X0)" || { warn "Socket X11 introuvable"; SOFT=$((SOFT+1)); }
@@ -92,16 +98,19 @@ if need_cmd docker && docker info >/dev/null 2>&1; then
     SOFT=$((SOFT+1))
   fi
 
-  if [ "${DOCKER_CONTEXT:-}" = "awsim-native" ]; then
+  if [ "$IS_WSL" = 0 ]; then
+    ok "Ubuntu natif : moteur Docker local"
+  elif [ "${DOCKER_CONTEXT:-}" = "awsim-native" ]; then
     ok "Moteur Docker natif utilise (contexte awsim-native)"
   else
     warn "Moteur Docker Desktop utilise : voir le point 6."
   fi
 
   title "6. Reseau conteneur <-> hote (critique pour DDS)"
-  HOST_IP=$(ip -4 -o addr show eth0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
-  CTR_IP=$(docker run --rm --network host alpine:3 ip -4 -o addr show eth0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
-  info "IP de la distro WSL       : ${HOST_IP:-inconnue}"
+  # Liste de toutes les IPv4 : independant du nom d'interface (eth0, wlo1...).
+  HOST_IP=$(ip -4 -o addr show 2>/dev/null | awk '{print $4}' | sort | xargs)
+  CTR_IP=$(docker run --rm --network host alpine:3 ip -4 -o addr show 2>/dev/null | awk '{print $4}' | sort | xargs)
+  info "IP de l'hote              : ${HOST_IP:-inconnue}"
   info "IP du conteneur --net host: ${CTR_IP:-inconnue}"
   if [ -n "${CTR_IP:-}" ] && [ "$HOST_IP" = "$CTR_IP" ]; then
     ok "Pile reseau partagee : AWSIM et Autoware se verront sur la loopback."

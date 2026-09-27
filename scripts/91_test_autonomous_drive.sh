@@ -29,7 +29,7 @@ info "Duree d'observation : ${WATCH_SECONDS} s"
 
 cd "$PROJECT_DIR/docker"
 HOST_UID=$(id -u) HOST_GID=$(id -g) AUTOWARE_IMAGE="$AUTOWARE_IMAGE" \
-docker compose -f "$PROJECT_DIR/docker/awsim.compose.yaml" run --rm -T shell bash -c "
+docker compose run --rm -T shell bash -c "
 set -e
 source /opt/autoware/setup.bash
 

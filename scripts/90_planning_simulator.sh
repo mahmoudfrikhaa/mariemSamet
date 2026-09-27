@@ -17,4 +17,4 @@ cd "$PROJECT_DIR/docker"
 HOST_UID=$(id -u) HOST_GID=$(id -g) \
 AUTOWARE_IMAGE="$AUTOWARE_IMAGE" \
 AW_LAUNCH_ARGS="${AW_LAUNCH_ARGS:-}" \
-  exec docker compose -f "$PROJECT_DIR/docker/awsim.compose.yaml" run --rm psim
+  exec docker compose run --rm psim

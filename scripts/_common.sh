@@ -24,9 +24,22 @@ export AUTOWARE_IMAGE="${AUTOWARE_IMAGE:-ghcr.io/autowarefoundation/autoware:uni
 # simulation doivent utiliser la meme implementation (verifie dans le journal
 # d'AWSIM : "RMW: rmw_fastrtps_cpp").
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-export FASTRTPS_DEFAULT_PROFILES_FILE="$PROJECT_DIR/config/fastdds.xml"
+# Hors WSL, profil avec memoire partagee (voir config/fastdds-native.xml).
+if uname -r | grep -qi microsoft; then FASTDDS_PROFILE=fastdds.xml; else FASTDDS_PROFILE=fastdds-native.xml; fi
+export FASTDDS_PROFILE
+export FASTRTPS_DEFAULT_PROFILES_FILE="$PROJECT_DIR/config/$FASTDDS_PROFILE"
 export FASTDDS_DEFAULT_PROFILES_FILE="$FASTRTPS_DEFAULT_PROFILES_FILE"
 unset ROS_LOCALHOST_ONLY || true
+
+# --- WSL ou Ubuntu natif ? ----------------------------------------------------
+if uname -r | grep -qi microsoft; then IS_WSL=1; else IS_WSL=0; fi
+export IS_WSL
+
+# Fichiers Compose : la base vise Ubuntu natif ; sous WSL on y ajoute le
+# complement WSLg/D3D12. Docker Compose lit COMPOSE_FILE (separateur ':').
+COMPOSE_FILE="$PROJECT_DIR/docker/awsim.compose.yaml"
+[ "$IS_WSL" = 1 ] && COMPOSE_FILE="$COMPOSE_FILE:$PROJECT_DIR/docker/awsim.wsl.yaml"
+export COMPOSE_FILE
 
 # --- Moteur Docker ------------------------------------------------------------
 # Docker Desktop isole ses conteneurs dans une autre distribution WSL : le DDS

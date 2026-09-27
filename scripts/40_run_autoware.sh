@@ -7,8 +7,6 @@
 #   AW_LAUNCH_ARGS="perception:=false" scripts/40_run_autoware.sh   # mode degrade
 source "$(dirname "$0")/_common.sh"
 
-COMPOSE="$PROJECT_DIR/docker/awsim.compose.yaml"
-
 title "Verifications prealables"
 [ -f "$MAP_DIR/map/lanelet2_map.osm" ] || die "Carte absente. Lancez : make map"
 [ -d "$ML_MODELS_DIR" ] || die "Modeles absents. Lancez : make models"
@@ -37,4 +35,4 @@ cd "$PROJECT_DIR/docker"
 HOST_UID=$(id -u) HOST_GID=$(id -g) \
 AUTOWARE_IMAGE="$AUTOWARE_IMAGE" \
 AW_LAUNCH_ARGS="${AW_LAUNCH_ARGS:-}" \
-  exec docker compose -f "$COMPOSE" run --rm --name autoware_awsim autoware
+  exec docker compose run --rm --name autoware_awsim autoware

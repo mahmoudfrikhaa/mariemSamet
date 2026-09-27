@@ -19,7 +19,11 @@ HF="$VENV/bin/hf"
 
 # Format : depot:revision[:dossier_destination]
 CORE_MODELS=(
-  "lidar_centerpoint:v4.1"              # detection d'objets 3D sur le LiDAR (detecteur par defaut)
+  # v3.0 et non v4.1 : v4.1 range chaque variante dans un sous-dossier (tiny/,
+  # base/...), alors que l'image universe-cuda-humble cherche encore les
+  # fichiers a plat (centerpoint_tiny_ml_package.param.yaml...). Verifie le
+  # 2026-09-26 : avec v4.1 le lancement d'Autoware echoue immediatement.
+  "lidar_centerpoint:v3.0"              # detection d'objets 3D sur le LiDAR (detecteur par defaut)
   "tensorrt_yolox:v1.0"                 # detection image, sert aussi aux feux tricolores
   "traffic_light_fine_detector:v3.0"    # localisation fine des feux
   "traffic_light_classifier:v4.0"       # couleur/forme des feux

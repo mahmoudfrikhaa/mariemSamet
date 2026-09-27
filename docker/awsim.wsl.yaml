@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# Complement WSL2 de awsim.compose.yaml. Charge automatiquement par
+# scripts/_common.sh (variable COMPOSE_FILE) quand WSL est detecte.
+#   - socket WSLg (/mnt/wslg) pour l'affichage de RViz
+#   - /dev/dxg et /usr/lib/wsl : pilote GPU de WSL
+#   - OpenGL materiel via le pilote Mesa D3D12
+# ---------------------------------------------------------------------------
+
+x-wsl: &wsl
+  environment:
+    - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
+    - XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
+    - PULSE_SERVER=/mnt/wslg/PulseServer
+    - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+    # Sous WSL, Mesa ne choisit le pilote D3D12 (et donc le GPU) que si on le
+    # lui demande explicitement, sinon il retombe sur llvmpipe.
+    - GALLIUM_DRIVER=d3d12
+    - MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA
+    - __GLX_VENDOR_LIBRARY_NAME=mesa
+    - __NV_PRIME_RENDER_OFFLOAD=0
+  devices:
+    - /dev/dxg:/dev/dxg
+  volumes:
+    - /mnt/wslg:/mnt/wslg:rw
+    - /usr/lib/wsl:/usr/lib/wsl:ro
+
+services:
+  autoware: *wsl
+  psim: *wsl
+  shell: *wsl
